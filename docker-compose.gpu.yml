@@ -4,6 +4,8 @@ services:
   workspace:
     build:
       context: .
+      args:
+        BASE_IMAGE: gcr.io/kaggle-gpu-images/python
     container_name: kaggle-dev-workspace
     working_dir: /kaggle/working
     stdin_open: true
@@ -12,8 +14,18 @@ services:
     environment:
       KAGGLE_PROJECT_ROOT: /kaggle/dev
       KAGGLE_DATA_DIR: /kaggle/input
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      NVIDIA_VISIBLE_DEVICES: all
     volumes:
       - ./dev:/kaggle/
       - ./data/input:/kaggle/input
       - ./data/working:/kaggle/working
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities:
+                - gpu
     command: ["bash"]

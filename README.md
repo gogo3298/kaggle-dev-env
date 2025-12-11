@@ -13,6 +13,20 @@ Kaggle notebook 互換の Docker 環境を手元で再現し、推論・学習�
 
 * kaggle notebook の実行環境よりもリッチな環境で学習ができる
 
+## Docker イメージ
+
+`Dockerfile` では Kaggle が配布している `gcr.io/kaggle-images/python` をベースに `hydra-core` を追加でインストールしたカスタムイメージを作成しています。GPU 向けの `docker-compose.gpu.yml` では `BASE_IMAGE=gcr.io/kaggle-gpu-images/python` を指定して同じレイヤー構成のまま GPU ドライバ対応版をビルドします。
+
+```bash
+# CPU 向け
+docker compose build workspace
+
+# GPU 向け
+docker compose -f docker-compose.gpu.yml build workspace
+```
+
+GPU コンテナを起動する前にホスト側に NVIDIA Driver と [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html) をインストールし、`nvidia-smi` と `docker info | grep -i nvidia` が動作する状態にしておいてください。これらが正しくセットアップされていない場合は `could not select device driver "nvidia" with capabilities: [[gpu]]` のようなエラーになります。
+
 ## ディレクトリ構成
 
 ```
@@ -24,7 +38,7 @@ Kaggle notebook 互換の Docker 環境を手元で再現し、推論・学習�
 │   ├── input/                # ダウンロードしたコンペデータ
 │   └── working/              # ローカル出力（コンテナの /kaggle/working）
 ├── dev/                      # /kaggle/dev にマウントされる作業領域
-│   ├── input/                # /kaggle/input（read only）としてマウント
+│   ├── input/                # /kaggle/input としてマウント
 │   └── working/              # /kaggle/working としてマウント
 ├── scripts/                  # Kaggle API をラップした補助スクリプト
 └── docker-compose.yml        # 作業用コンテナの定義
@@ -54,14 +68,59 @@ Kaggle notebook 互換の Docker 環境を手元で再現し、推論・学習�
 
 ## 使い方
 
-### 前提
+### Debian 向けの環境セットアップメモ
 
-* Docker
-  * https://docs.docker.com/engine/install/
-* Docker Compose V2 (`docker compose` コマンドが利用できる)
-* uv（Python パッケージ/環境マネージャ）
-  * [公式インストール手順](https://docs.astral.sh/uv/getting-started/installation/)
-  * 例: `curl -LsSf https://astral.sh/uv/install.sh | sh`
+Github CLI インストール cf. https://github.com/cli/cli/blob/trunk/docs/install_linux.md#debian
+```bash
+(type -p wget >/dev/null || (sudo apt update && sudo apt install wget -y)) \
+	&& sudo mkdir -p -m 755 /etc/apt/keyrings \
+	&& out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+	&& cat $out | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+	&& sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+	&& sudo mkdir -p -m 755 /etc/apt/sources.list.d \
+	&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+	&& sudo apt update \
+	&& sudo apt install gh -y
+```
+
+Github ログイン
+```bash
+gh auth login
+```
+
+Docker インストール cf. https://docs.docker.com/engine/install/debian/#install-using-the-repository
+```bash
+# Add Docker's official GPG key:
+sudo apt update
+sudo apt install ca-certificates curl
+sudo install -m 0755 -d /etc/apt/keyrings
+sudo curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+
+# Add the repository to Apt sources:
+sudo tee /etc/apt/sources.list.d/docker.sources <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/debian
+Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
+Components: stable
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+sudo apt update
+
+sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin -y
+```
+
+uv インストール cf. https://docs.astral.sh/uv/getting-started/installation/
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+### kaggle-dev-env クローン
+
+```bash
+git clone https://github.com/gogo3298/kaggle-dev-env.git
+```
 
 ### ツール類の依存パッケージをインストール
 
@@ -74,11 +133,12 @@ uv sync
 ```bash
 # バックグラウンドで起動
 docker compose up -d workspace
+
+# GPU あり
+docker compose -f docker-compose.gpu.yml up -d workspace
 ```
 
-`docker compose exec workspace bash` でコンテナ内シェルに入ります。作業終了後は `docker compose down` で停止してください。
-
-`dev/` 以下のファイルはコンテナ内の `/kaggle/` で参照できます。`dev/input` → `/kaggle/input`（read only）、`dev/working` → `/kaggle/working` にマッピングされるため、用途を 1 つのコンテナで整理できます。
+`dev/` 以下のファイルはコンテナ内の `/kaggle/` で参照できます。`dev/input` → `/kaggle/input`、`dev/working` → `/kaggle/working` にマッピングされるため、用途を 1 つのコンテナで整理できます。
 
 ### コンペデータのダウンロード
 
@@ -167,4 +227,3 @@ uv run python scripts/push_notebook.py \
 * `--secrets` : 認証情報ファイルのパス（任意）。
 
 `push_notebook.py` は一時ディレクトリに `kernel-metadata.json` を生成して `kaggle kernels push` を実行します。Kaggle の仕様上 Kernel のタイトルからスラッグが導出されるため、一致しない場合はスクリプトが自動的にタイトルを補正します。
-
