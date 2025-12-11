@@ -1,0 +1,12 @@
+[project]
+name = "kaggle-dev-env"
+version = "0.1.0"
+description = "Utilities and tooling for running Kaggle-style dev environments"
+requires-python = ">=3.10"
+dependencies = [
+    "kaggle>=1.6.17",
+    "python-dotenv>=1.0.1",
+]
+
+[tool.uv]
+python-preference = "system"

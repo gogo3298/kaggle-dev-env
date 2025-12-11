@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  workspace:
+    image: gcr.io/kaggle-images/python
+    container_name: kaggle-dev-workspace
+    working_dir: /kaggle/working
+    stdin_open: true
+    tty: true
+    shm_size: 16g
+    environment:
+      KAGGLE_PROJECT_ROOT: /kaggle/dev
+      KAGGLE_DATA_DIR: /kaggle/input
+    volumes:
+      - ./dev:/kaggle/
+      - ./data/input:/kaggle/input:ro
+      - ./data/working:/kaggle/working
+    command: ["bash"]
