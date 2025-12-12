@@ -71,7 +71,7 @@ GPU コンテナを起動する前にホスト側に NVIDIA Driver と [NVIDIA C
 
 ## 使い方
 
-### Debian11 向けの環境セットアップメモ
+### Debian 11（x86_64） 向けの環境セットアップメモ
 
 Github CLI インストール cf. https://github.com/cli/cli/blob/trunk/docs/install_linux.md#debian
 ```bash
@@ -91,16 +91,18 @@ Github ログイン
 gh auth login
 ```
 
-CUDA Toolkit インストール cf. https://developer.nvidia.com/cuda-12-6-3-download-archive?target_os=Linux&target_arch=x86_64&Distribution=Debian&target_version=11&target_type=deb_network
+CUDA Toolkit インストール cf. https://developer.nvidia.com/cuda-12-5-1-download-archive?target_os=Linux&target_arch=x86_64&Distribution=Debian&target_version=11&target_type=deb_network
 ```bash
 wget https://developer.download.nvidia.com/compute/cuda/repos/debian11/x86_64/cuda-keyring_1.1-1_all.deb
 sudo dpkg -i cuda-keyring_1.1-1_all.deb
 sudo add-apt-repository contrib
 sudo apt-get update
-sudo apt-get -y install cuda-toolkit-12-6
+sudo apt-get -y install cuda-toolkit-12-5
+```
 
-echo 'export PATH="/usr/local/cuda/bin:/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games:$PATH"' >> ~/.bashrc
-echo 'export LD_LIBRARY_PATH="/usr/local/cuda/lib64:/usr/local/nccl2/lib:/usr/local/cuda/extras/CUPTI/lib64:$LD_LIBRARY_PATH"' >> ~/.bashrc
+NVIDIA Driver インストール
+```bash
+apt install linux-headers-$(uname -r)
 ```
 
 Docker インストール cf. https://docs.docker.com/engine/install/debian/#install-using-the-repository
@@ -150,6 +152,45 @@ export NVIDIA_CONTAINER_TOOLKIT_VERSION=1.18.1-1
 uv インストール cf. https://docs.astral.sh/uv/getting-started/installation/
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+色々全部盛り（工事中）
+```bash
+#!/bin/bash
+
+export DEBIAN_FRONTEND=noninteractive
+
+sudo apt-get update
+sudo apt-get install linux-headers-$(uname -r)
+sudo apt-get install -y software-properties-common
+
+wget https://developer.download.nvidia.com/compute/cuda/repos/debian11/x86_64/cuda-keyring_1.1-1_all.deb
+sudo dpkg -i cuda-keyring_1.1-1_all.deb
+sudo add-apt-repository contrib
+sudo apt-get update
+sudo apt-get -y install cuda-toolkit-12-5
+sudo apt-get install -y nvidia-driver
+sudo apt-get -V -y install nvidia-open
+sudo apt-get -V -y install cuda-drivers
+
+# https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html#with-apt-ubuntu-debian
+sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+   curl \
+   gnupg2
+curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg \
+  && curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+    sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+    sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+sudo apt-get update
+export NVIDIA_CONTAINER_TOOLKIT_VERSION=1.18.1-1
+  sudo apt-get install -y \
+      nvidia-container-toolkit=${NVIDIA_CONTAINER_TOOLKIT_VERSION} \
+      nvidia-container-toolkit-base=${NVIDIA_CONTAINER_TOOLKIT_VERSION} \
+      libnvidia-container-tools=${NVIDIA_CONTAINER_TOOLKIT_VERSION} \
+      libnvidia-container1=${NVIDIA_CONTAINER_TOOLKIT_VERSION}
+sudo nvidia-ctk runtime configure --runtime=docker
+sudo systemctl restart docker
+
 ```
 
 ### kaggle-dev-env クローン
