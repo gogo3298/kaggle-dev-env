@@ -9,9 +9,12 @@ Kaggle notebook 互換の Docker 環境を手元で再現し、推論・学習�
 - [ ] mlflow による実験管理ができる
 - [ ] dvc により実験データ管理ができる
 
-## TODO
+## dvc の標準パイプライン
 
-* kaggle notebook の実行環境よりもリッチな環境で学習ができる
+1. preprocess
+2. feature
+3. train
+4. predict（submission.csv 生成）
 
 ## Docker イメージ
 
